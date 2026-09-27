@@ -1,6 +1,7 @@
 # 教育智能体运行时 · 起步脚手架
 
 > 这是毕设的**第 0 天代码**：一条能跑通的端到端链路 + 一套可扩展的分层。
+> 仓库：<https://github.com/shiliyunma/eduagent>　（SSH：`git@github.com:shiliyunma/eduagent.git`）
 > 作者：张思浩（南京邮电大学 软件工程 2027 届）　建立：2026-09-27　版本 0.1.0
 
 ---
@@ -8,7 +9,8 @@
 ## 一、3 条命令跑起来
 
 ```bash
-cd "D:/AI+教育毕设毕设/毕设规划/脚手架"
+# 0) 拿到代码（首次）
+git clone git@github.com:shiliyunma/eduagent.git && cd eduagent
 
 # 1) 自检（不联网、不需要 key，6 项全绿才算环境没问题）
 python check.py
