@@ -1,0 +1,7 @@
+# 毕设脚手架最小依赖（故意压到最少：能不加就不加）
+# 模型调用走 requests 直连，不需要 openai 客户端
+requests>=2.31.0
+
+# 可选：接 RAGLearn 的习题索引时才需要（MySQL）
+# pymysql>=1.1.0
+# 可选：接 RAGLearn 的检索底座时，按 RAGLearn 自己的 requirements.txt 装

@@ -1,0 +1,20 @@
+# 统一换行：仓库里一律存 LF，避免 Windows/Linux 来回改动整份文件
+* text=auto
+*.py    text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+*.json  text eol=lf
+*.jsonl text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.sh    text eol=lf
+*.ps1   text eol=crlf
+
+# 二进制/产物
+*.db    binary
+*.pdf   binary
+*.png   binary
+
+# 语言统计：把样例数据与文档排除，让 GitHub 的代码占比反映真实情况
+data/*.jsonl   linguist-documentation
+*.md           linguist-documentation
