@@ -332,12 +332,26 @@ def aggregate(records: List[Dict[str, Any]]) -> Dict[str, Any]:
                             "num": sum(vals) if vals else 0, "den": len(vals),
                             "desc": "工具调用成功率（trace.payload.ok）"}
     exp_tools = [r for r in records if r.get("expect_tools")]
-    called_ok = [r for r in exp_tools
-                 if set(r["expect_tools"]) & set(r.get("tool_calls") or [])]
+    # ⚠️ 字段名是 tools_called（不是 tool_calls）：读错字段会让这个指标恒为 0，
+    # 而且不报错 —— 这种"静默恒零"的指标最容易骗到自己。
+    def _called(r):
+        return list(r.get("tools_called") or r.get("tool_calls") or [])
+
+    # 严格口径：**预期的工具全都调到了**才算命中。
+    # 用并集（调到任意一个就算过）会掩盖"流水线只跑了一半"这种事 ——
+    # 实测 b1 在 F-01 只调了 research_search + fetch_source（期望 3 个），
+    # 用并集会被判成"路由正确"，但六步流水线其实断了。
+    called_all = [r for r in exp_tools if set(r["expect_tools"]) <= set(_called(r))]
+    called_any = [r for r in exp_tools if set(r["expect_tools"]) & set(_called(r))]
     m["E6_tool_recall"] = {
-        "value": round(len(called_ok) / len(exp_tools), 4) if exp_tools else None,
-        "num": len(called_ok), "den": len(exp_tools),
-        "desc": "期望工具命中率：调用了预期工具的题比例（工具路由是否走对）"}
+        "value": round(len(called_all) / len(exp_tools), 4) if exp_tools else None,
+        "num": len(called_all), "den": len(exp_tools),
+        "desc": "期望工具全命中率（严格）：只对**走工具接口**的臂有意义；"
+                "a0 没有工具、a1 的检索写在流水线里不走工具，二者结构性为 0，不算缺陷"}
+    m["E6b_tool_recall_any"] = {
+        "value": round(len(called_any) / len(exp_tools), 4) if exp_tools else None,
+        "num": len(called_any), "den": len(exp_tools),
+        "desc": "期望工具任一命中率（宽松）：至少调到了一个预期工具的题比例"}
     # E7 超预算
     over = [r for r in records if r.get("stop_reason") == "max_iterations"]
     m["E7_budget_overflow_rate"] = {"value": round(len(over) / len(records), 4),

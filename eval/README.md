@@ -10,6 +10,9 @@
 ```bash
 cd "D:/AI+教育毕设毕设/毕设规划/脚手架"
 
+# ⓪ 指标自检（改了 metrics.py 之后**必须先跑这个**，秒级完成）
+python eval/selftest_metrics.py
+
 # ① 全量跑（不需要 key：没有 API key 时自动用 mock 模型，只验链路）
 python eval/run_eval.py
 
@@ -84,8 +87,11 @@ python eval/report.py --tag v1                             # 只报告该批次
 - `expect` 三选一：`answer`（要答对）｜`refuse`（要拒答）｜`correct_false_premise`（要纠正错误前提）
 - `must_contain` / `must_not_contain` 是**规则判分**的依据，写窄了会低估系统，写宽了会放水
 
-## 三条纪律
+## 四条纪律
 
 1. **跑之前先 `git commit`** —— 代码、题库、配置三者版本要对得上，否则结果不可复现。
 2. **mock 的结果不能当结论** —— 报告顶部会自动打警示条。
 3. **判官分数要人工校准** —— `judge.py --kappa`，kappa < 0.6 就不许写进论文。
+4. **改了 `metrics.py` 先跑 `python eval/selftest_metrics.py`** —— 30 项断言，秒级。
+   为什么要这么严：E6 曾因读错字段名（`tool_calls` vs `tools_called`）**恒为 0 且不报错**，
+   看起来像"系统完全不会路由"。指标静默变错比直接报错危险得多。
