@@ -83,6 +83,7 @@ def _search_raglearn(query: str, subject: str = None, top_k: int = None) -> List
     for d in docs[: (top_k or config.KB_TOP_K)]:
         meta = getattr(d, "metadata", {}) or {}
         out.append({
+            "id": meta.get("id") or meta.get("chunk_id") or "",
             "text": getattr(d, "page_content", str(d)),
             "subject": meta.get("subject", ""),
             "chapter": meta.get("chapter_title") or meta.get("chapter", ""),
@@ -125,5 +126,9 @@ def search_course_kb(query: str, subject: str = None) -> str:
     blocks = []
     for i, r in enumerate(rows, 1):
         src = " · ".join([p for p in (r.get("subject"), r.get("chapter"), r.get("section")) if p])
-        blocks.append("[%d] 【出处】%s\n%s" % (i, src or r.get("source", "未知来源"), r.get("text", "")))
+        # 出处里带上 chunk id：这样"回答引的是不是真的检索结果"可以被程序校验，
+        # 也是评测里 E1「引用可溯率」能自动算的前提。
+        cid = r.get("id") or ""
+        tag = ("%s · %s" % (cid, src)) if (cid and src) else (cid or src or r.get("source", "未知来源"))
+        blocks.append("[%d] 【出处】%s\n%s" % (i, tag, r.get("text", "")))
     return "\n\n".join(blocks)

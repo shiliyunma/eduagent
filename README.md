@@ -129,6 +129,14 @@ scripts/make_arxiv_fixture.py  把在线检索结果存成离线样例
 check.py                  自检（6 项）
 run_demo.py               课程问答端到端演示
 run_research_demo.py      调研流水线演示
+eval/                     自动化评测：43 条输入 × 5 条对照臂 × 三层指标
+├── questions.jsonl       ★ 题库 + 金标准 + 判分规则（加题只改这个文件）
+├── run_eval.py           跑评测 → out/<arm>.jsonl
+├── metrics.py            ★ 指标与统计口径（论文可直接引它）
+├── judge.py              LLM 判官（G-Eval 风格）+ 人工校准 kappa
+├── report.py             可视化报告（自包含 HTML + Markdown 表）
+├── manual_sheet.py       人工判分表 / 双人一致度 / 汇总
+└── rescore.py            改了判分规则后重算分数（不重跑模型）
 run/                      运行产物（自动生成，已 gitignore 掉）
 ```
 
@@ -196,7 +204,40 @@ RAGLearn 用的是 ChromaDB + bge 嵌入 + Cross-Encoder 重排，第一次跑�
 
 ---
 
-## 七、配置与命令行
+## 七、自动化评测
+
+`eval/` 是一套**可复现的评测流程**：43 条输入 × 5 条对照臂 × 三层指标 → 一份自包含的可视化报告。
+指标口径的来龙去脉（业界标准、为什么这么定、哪些数不能信）写在本地文档 `09-自动化评测流程与指标标准.md`，
+这里只说怎么跑。
+
+```bash
+# 一键跑（不需要 key：没有 API key 时自动用 mock 模型，只验链路）
+python eval/run_eval.py
+python eval/report.py --open          # → eval/out/report.html
+
+# 用真模型跑（写进论文的数字必须这么来）
+export LLM_API_KEY=sk-xxx LLM_BASE_URL=https://api.deepseek.com/v1 LLM_MODEL=deepseek-chat
+python eval/run_eval.py --arms a0,a1,a2 --runs 3 --tag real
+python eval/report.py --tag real --open
+```
+
+| 臂 | 是什么 |
+|---|---|
+| `a0` | 纯 LLM（下界基线） |
+| `a1` | 纯 RAG 单轮固定流水线（最强基线） |
+| `a2` | 完整智能体（core 工具集） |
+| `b0` / `b1` | 调研通道的 B0（单轮直出）与 B1（完整六步流水线） |
+
+三层指标：**规则自动**（引用可溯率、出处命中率、拒答召回 **与误拒率**、工具成功率、成本…）→
+**检索金标准**（Recall@k / MRR / nDCG）→ **语义**（LLM 判官 + 人工校准 kappa）。
+统计上每个比例都报 Wilson 95% 区间，臂间差异用 McNemar 配对检验，`--runs 3` 可算 pass^k 稳定性。
+
+> ⚠️ mock 模式的结果只说明链路通，**不代表效果**；报告顶部会自动打警示条。
+> 加题、改判分规则只改 `eval/questions.jsonl`，**不用改代码**。
+
+---
+
+## 八、配置与命令行
 
 所有参数集中在 `eduagent/config.py`，其中这几项可以用环境变量覆盖（`.env.example` 是模板）：
 
