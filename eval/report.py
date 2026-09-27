@@ -174,7 +174,7 @@ def svg_scatter(arms, agg_by_arm, width=420, height=280):
     return "".join(parts)
 
 
-def svg_heatmap(records, arms, width=None):
+def svg_heatmap(records, arms, focus=None, width=None):
     """逐题热力图：每行一道题，每列一条臂；绿=满分、黄=半分、红=0分、灰=该臂没跑这题。"""
     qids = []
     for a in arms:
@@ -182,6 +182,7 @@ def svg_heatmap(records, arms, width=None):
             if r["qid"] not in qids:
                 qids.append(r["qid"])
     qids.sort()
+    focus = focus or arms[-1]
     cell, gap, labw = 15, 2, 62
     cols = len(arms)
     width = labw + cols * (cell + gap) + 150
@@ -206,7 +207,7 @@ def svg_heatmap(records, arms, width=None):
                 s = r.get("score", 0)
                 cls = "cell-1" if s >= 1 else ("cell-05" if s >= 0.5 else "cell-0")
                 tip = "score=%s %s" % (s, ("；" + "；".join(r.get("reasons") or [])) if r.get("reasons") else "")
-                if s < 1 and a == arms[-1]:
+                if s < 1 and a == focus:
                     fails.append(r)
             parts.append(f'<rect x="{x}" y="{y}" width="{cell}" height="{cell}" rx="3" class="{cls}"><title>{_esc(tip)}</title></rect>')
     lx = labw + cols * (cell + gap) + 12
@@ -241,7 +242,8 @@ def metric_table(arms, agg_by_arm):
     return "".join(rows)
 
 
-def build_html(arms, records, agg_by_arm, meta) -> str:
+def build_html(arms, records, agg_by_arm, meta, focus=None) -> str:
+    focus = focus or arms[-1]
     head = """<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
 <title>教育智能体 · 自动化评测报告</title>
 <style>
@@ -350,12 +352,12 @@ rect.cell-1{fill:#2f9e6a}rect.cell-05{fill:#b8860b}rect.cell-0{fill:#b3453f}rect
 
     # 热力图
     parts.append('<h2>六、逐题结果热力图</h2>')
-    parts.append('<div class="card">%s</div>' % svg_heatmap(records, arms))
+    parts.append('<div class="card">%s</div>' % svg_heatmap(records, arms, focus))
 
     # 失败清单
-    last = arms[-1]
+    last = focus
     fails = [r for r in records[last] if r.get("score", 0) < 1]
-    parts.append('<h2>七、%s 的未满分题（%d 条）</h2>' % (_esc(last), len(fails)))
+    parts.append('<h2>七、%s（%s）的未满分题（%d 条）</h2>' % (_esc(last), _esc(arm_label(last, records[last])), len(fails)))
     parts.append('<div class="card"><table><thead><tr><th>题号</th><th>组</th><th class="num">分</th>'
                  '<th>问题</th><th>失败原因</th><th>回答片段</th></tr></thead><tbody>')
     for r in fails:
@@ -442,6 +444,8 @@ def build_markdown(arms, records, agg_by_arm, meta) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description="生成评测可视化报告")
     ap.add_argument("--tag", default="", help="只看文件名带该后缀的结果")
+    ap.add_argument("--focus", default="", help="把哪条臂当作被测系统（失败清单与热力图高亮）；默认 a2")
+    ap.add_argument("--model", default="", help="手动指定报告上显示的模型名（记录里没有时用）")
     ap.add_argument("--open", action="store_true", help="生成后打开浏览器")
     args = ap.parse_args()
 
@@ -451,21 +455,27 @@ def main() -> int:
         return 1
     arms = [a for a in ARM_ORDER if a in records] + [a for a in records if a not in ARM_ORDER]
     agg_by_arm = {a: M.aggregate(records[a]) for a in arms}
-    model = records[arms[0]][0].get("arm_name", "?")
-    # 从记录里反推模型名：agent 记录里没存，就用 meta 标注（mock 与否看有无真实延迟）
-    mock = all((r.get("llm_calls") or 0) == 0 for a in arms for r in records[a]) or \
-        any("mock" in str(r.get("answer", "")).lower() for r in records[arms[0]][:3])
+    # "被测系统"：默认挑最完整的那条核心臂（a2），没有就退回 b1 / 最后一条
+    focus = args.focus if args.focus in records else (
+        "a2" if "a2" in records else ("b1" if "b1" in records else arms[-1]))
+    # 模型名：优先用手动指定，其次读记录里的 model_id（更具体）/ model（适配层名）；都读不到就如实说明
+    names = sorted({str(r.get("model")) for a in arms for r in records[a] if r.get("model")})
+    ids = sorted({str(r.get("model_id")) for a in arms for r in records[a] if r.get("model_id")})
+    model_name = args.model or ("、".join(ids or names) or "（记录里没写模型名，见 run_eval 输出）")
+    # mock 判定要同时看两边：mock 跑的 model 是 "mock"，model_id 却是配置里的默认模型名
+    mock = any("mock" in x.lower() for x in (names + ids))
     meta = {
         "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "model": records[arms[0]][0].get("model", "见 run_eval 输出"),
+        "model": model_name,
         "n_questions": len(M.load_questions()),
         "n_records": sum(len(v) for v in records.values()),
         "mock": mock,
+        "focus": focus,
     }
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     html_path = OUT_DIR / "report.html"
     md_path = OUT_DIR / "report.md"
-    html_path.write_text(build_html(arms, records, agg_by_arm, meta), encoding="utf-8")
+    html_path.write_text(build_html(arms, records, agg_by_arm, meta, focus), encoding="utf-8")
     md_path.write_text(build_markdown(arms, records, agg_by_arm, meta), encoding="utf-8")
     print("已生成：\n  %s\n  %s" % (html_path, md_path))
     for a in arms:

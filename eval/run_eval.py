@@ -58,6 +58,7 @@ SYS_RAG = ("你是一位课程助教。**只依据下面给出的课程资料**�
 SYS_KB_IDS = re.compile(r"kb\d{3,}", re.I)
 
 MODEL_NAME = ""          # 由 main() 填上，方便报告里能标出"这轮是哪个模型跑的"
+MODEL_ID = ""            # 模型 id（如 deepseek-chat / 本地 ollama 的模型名）
 
 
 # ---------------------------------------------------------------- 小工具
@@ -113,7 +114,7 @@ def run_item(arm: str, item: dict, llm, verbose=False) -> dict:
     cfg = ARMS[arm]
     mode = cfg["mode"]
     rec = {
-        "arm": arm, "arm_name": cfg["name"], "model": MODEL_NAME,
+        "arm": arm, "arm_name": cfg["name"], "model": MODEL_NAME, "model_id": MODEL_ID,
         "qid": item["qid"], "group": item["group"],
         "category": item.get("category", ""), "question": item["turns"][-1],
         "turn_answers": [], "tools_called": [], "retrieved_ids": [],
@@ -209,8 +210,9 @@ def main() -> int:
     store.init_db()
     registry.discover()
     llm = get_llm()
-    global MODEL_NAME
+    global MODEL_NAME, MODEL_ID
     MODEL_NAME = llm.name
+    MODEL_ID = config.LLM_MODEL
     real = type(llm).__name__ != "MockLLM"
     print("=" * 78)
     print("教育智能体自动化评测%s" % ("" if real else "　【mock 模型：只验链路，不代表效果】"))

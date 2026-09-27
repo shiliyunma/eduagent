@@ -83,6 +83,10 @@ def cited_ids(text: str, retrieved_ids: Optional[List[str]] = None) -> List[str]
             tag = "[%d]" % i
             if tag not in out:
                 out.append(tag)
+    # 只写了"【出处】"却说不出是哪一条（没有 id 也没有序号）= 声称有出处但其实不可溯。
+    # 不把它算进来的话，"假装引用了"这种最危险的行为反而不会被扣分。
+    if "【出处】" in t and not out:
+        out.append("<未标id>")
     return out
 
 
